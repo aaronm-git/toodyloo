@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, Flame } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Heart } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
 import { useSession } from '@/lib/auth-client'
@@ -16,20 +16,21 @@ const Hero203 = () => {
       <div className="container mx-auto grid gap-10 px-4 md:px-6 lg:grid-cols-2 lg:items-center">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
-            <Badge variant="secondary" className="w-fit px-4 py-1.5 text-sm font-medium">
-              <Flame className="mr-1.5 h-3.5 w-3.5" />
-              Toodyloo
+            <Badge variant="secondary" className="w-fit px-4 py-1.5 text-sm font-medium gap-2">
+              <Heart className="h-3.5 w-3.5 text-red-500" />
+              A love letter to Wunderlist
             </Badge>
 
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-              Stop forgetting.
+              Miss Wunderlist?
               <br />
-              <span className="text-primary">Start finishing.</span>
+              <span className="text-primary">Me too. So I built this.</span>
             </h1>
 
             <p className="max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-              A fast, focused to-do app that helps you plan, prioritize, and ship the work that
-              matters.
+              Toodyloo is a fast, focused task app built because the best to-do app ever made is
+              gone. It is my portfolio project, crafted with AI, powered by OpenAI, and built on a
+              modern full-stack setup.
             </p>
           </div>
 
@@ -44,14 +45,14 @@ const Hero203 = () => {
             ) : (
               <Button asChild size="lg" className="gap-2">
                 <Link to="/login">
-                  Start Free Today
+                  Try It Free
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             )}
 
             {!session?.user && (
-              <p className="text-sm text-muted-foreground">No credit card • Setup in 30 seconds</p>
+              <p className="text-sm text-muted-foreground">No credit card. Setup in 30 seconds.</p>
             )}
           </div>
 
@@ -63,11 +64,11 @@ const Hero203 = () => {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>Privacy-first</span>
+                <span>AI included</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>Fast UI</span>
+                <span>Privacy-first</span>
               </div>
             </div>
           )}
@@ -90,7 +91,7 @@ const Hero203 = () => {
             <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6">
               <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-sm text-foreground backdrop-blur">
                 <span className="h-2 w-2 rounded-full bg-green-500" />
-                Built for momentum
+                Built with modern tools
               </div>
             </div>
           </div>

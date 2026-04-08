@@ -11,6 +11,7 @@ import {
   Sun,
   Target,
   TrendingUp,
+  Zap,
 } from 'lucide-react'
 import { useSession } from '../lib/auth-client'
 import { useTheme } from '../components/theme-provider'
@@ -30,6 +31,9 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu'
 import { Hero203 } from '../components/hero203'
+import { OriginStory } from '../components/origin-story'
+import { AiPoweredSection } from '../components/ai-powered-section'
+import { FaqSection } from '../components/faq-section'
 
 export const Route = createFileRoute('/')({ component: App })
 
@@ -50,7 +54,7 @@ function App() {
             <div className="flex flex-col">
               <span className="font-bold text-lg leading-none">Toodyloo</span>
               <span className="text-xs text-muted-foreground leading-none hidden sm:block">
-                AI Driven To-Do App
+                AI-Powered Task App
               </span>
             </div>
           </Link>
@@ -83,201 +87,119 @@ function App() {
         </div>
       </header>
 
-      {/* Video Hero Section */}
+      {/* Video Hero */}
       <Hero203 />
 
-      {/* Hero Section */}
-      <section className="w-full py-12 md:py-24 lg:py-32 xl:py-40 bg-linear-to-b from-background via-background to-muted/50">
+      {/* Origin Story */}
+      <OriginStory />
+
+      {/* AI-Powered Features */}
+      <AiPoweredSection />
+
+      {/* Core Features Grid */}
+      <section className="w-full py-16 md:py-20 bg-muted/30">
         <div className="container px-4 md:px-6 mx-auto">
-          <div className="flex flex-col items-center space-y-8 text-center">
-            <div className="space-y-6">
-              <Badge
-                variant="secondary"
-                className="mb-4 px-4 py-1.5 text-sm font-medium"
-              >
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                Powered by AI • The Future of Task Management
-              </Badge>
-              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl/none">
-                Your AI Assistant
-                <br />
-                <span className="text-primary">for Getting Things Done.</span>
-              </h1>
-              <p className="mx-auto max-w-[800px] text-lg text-muted-foreground md:text-xl lg:text-2xl leading-relaxed">
-                <strong className="text-foreground">Toodyloo</strong> uses
-                advanced AI to understand your goals, suggest tasks, prioritize
-                what matters, and help you accomplish more. Just tell it what
-                you need—in plain English—and watch it work.
-              </p>
-            </div>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
-              {session?.user ? (
-                <>
-                  <Button asChild size="lg" className="gap-2 text-base px-8">
-                    <Link to="/dashboard">
-                      Open Dashboard
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <p className="text-sm text-muted-foreground sm:ml-4">
-                    Welcome back, {session.user.name || session.user.email}! 👋
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Button
-                    asChild
-                    size="lg"
-                    className="gap-2 text-base px-8 h-12"
-                  >
-                    <Link to="/login">
-                      Start Free Today
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <p className="text-sm text-muted-foreground sm:ml-4">
-                    No credit card required • Setup in 30 seconds
-                  </p>
-                </>
-              )}
-            </div>
-
-            {/* Trust Indicators */}
-            {!session?.user && (
-              <div className="flex flex-wrap items-center justify-center gap-6 pt-8 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>Free Forever</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>No Credit Card</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>Privacy First</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="w-full py-16 md:py-20">
-        <div className="container px-4 md:px-6 mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-3">
-              Everything You Need to Succeed
+          <div className="text-center mb-12 space-y-3">
+            <Badge variant="outline" className="px-4 py-1.5 text-sm font-medium gap-2">
+              <Sparkles className="h-3.5 w-3.5" />
+              Core features
+            </Badge>
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              The basics, done exceptionally well
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Powerful features designed to help you accomplish more, stress
-              less, and stay organized effortlessly.
+              Wunderlist fans know the value of a clean, reliable task app. Toodyloo delivers the
+              same fundamentals with a modern stack underneath.
             </p>
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <Card className="border-2 hover:border-primary/50 transition-colors">
+            <Card className="border-2 hover:border-primary/50 transition-colors group">
               <CardHeader>
-                <div className="mb-3 text-primary">
-                  <Target className="h-10 w-10" />
+                <div className="mb-3 w-fit rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                  <Target className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-xl mb-2">
-                  Focus on What Matters
-                </CardTitle>
+                <CardTitle className="text-xl">Priorities that make sense</CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Smart priority management helps you tackle critical tasks
-                  first. Never waste time on low-value work again.
+                  Mark tasks as high, medium, or low priority. The app keeps urgent work at the top
+                  so you always know what to tackle first.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-primary/50 transition-colors">
+            <Card className="border-2 hover:border-primary/50 transition-colors group">
               <CardHeader>
-                <div className="mb-3 text-primary">
-                  <FolderKanban className="h-10 w-10" />
+                <div className="mb-3 w-fit rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                  <FolderKanban className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-xl mb-2">
-                  Organize Your Life
-                </CardTitle>
+                <CardTitle className="text-xl">Lists for everything</CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Custom lists and color-coded tags let you organize tasks your
-                  way. Find anything instantly, no matter how complex your
-                  workflow.
+                  Create color-coded lists for work, personal projects, side hustles, or anything
+                  else. Just like Wunderlist, only with AI baked in.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-primary/50 transition-colors">
+            <Card className="border-2 hover:border-primary/50 transition-colors group">
               <CardHeader>
-                <div className="mb-3 text-primary">
-                  <ListTodo className="h-10 w-10" />
+                <div className="mb-3 w-fit rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                  <ListTodo className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-xl mb-2">
-                  Break Down Big Goals
-                </CardTitle>
+                <CardTitle className="text-xl">Subtasks that go deep</CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Turn overwhelming projects into manageable steps. Create
-                  subtasks and nested hierarchies to track progress on complex
-                  initiatives.
+                  Break any task into subtasks. Whether you add them yourself or let the AI generate
+                  them, big projects become manageable quickly.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-primary/50 transition-colors">
+            <Card className="border-2 hover:border-primary/50 transition-colors group">
               <CardHeader>
-                <div className="mb-3 text-primary">
-                  <Calendar className="h-10 w-10" />
+                <div className="mb-3 w-fit rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                  <Calendar className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-xl mb-2">
-                  Never Miss a Deadline
-                </CardTitle>
+                <CardTitle className="text-xl">Due dates you won't miss</CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Visual reminders and smart due date tracking ensure you're
-                  always on top of what's coming up. Stay ahead, never behind.
+                  Set due dates and recurring schedules. Visual indicators surface what is coming up
+                  so nothing slips through.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-primary/50 transition-colors">
+            <Card className="border-2 hover:border-primary/50 transition-colors group">
               <CardHeader>
-                <div className="mb-3 text-primary">
-                  <TrendingUp className="h-10 w-10" />
+                <div className="mb-3 w-fit rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                  <TrendingUp className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-xl mb-2">
-                  See Your Progress
-                </CardTitle>
+                <CardTitle className="text-xl">Progress you can see</CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Real-time statistics and completion rates show you exactly how
-                  productive you've been. Celebrate wins and stay motivated.
+                  Completion rates and activity history show you how much you have shipped. Seeing
+                  the streak keeps you going.
                 </CardDescription>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-primary/50 transition-colors">
+            <Card className="border-2 hover:border-primary/50 transition-colors group">
               <CardHeader>
-                <div className="mb-3 text-primary">
-                  <CheckCircle2 className="h-10 w-10" />
+                <div className="mb-3 w-fit rounded-xl bg-primary/10 p-3 group-hover:bg-primary/20 transition-colors">
+                  <Zap className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-xl mb-2">Lightning Fast</CardTitle>
+                <CardTitle className="text-xl">Instant, optimistic UI</CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Instant updates and seamless syncing mean you spend less time
-                  waiting and more time doing. Optimistic UI keeps you moving
-                  forward.
+                  Every action updates the screen before the server responds. No spinners, no lag.
+                  The app feels as fast as a native application.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -285,18 +207,20 @@ function App() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* FAQ */}
+      <FaqSection />
+
+      {/* Final CTA */}
       {!session?.user && (
         <section className="w-full py-16 md:py-20 bg-linear-to-br from-primary via-primary to-primary/90 text-primary-foreground">
           <div className="container px-4 md:px-6 mx-auto">
             <div className="flex flex-col items-center space-y-6 text-center max-w-3xl mx-auto">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-                Ready to Experience AI-Powered Productivity?
+                Ready to try the app I wish existed?
               </h2>
               <p className="mx-auto text-lg md:text-xl text-primary-foreground/90 leading-relaxed">
-                Join thousands who've already discovered how AI can transform
-                their task management. Start your free account today—no credit
-                card required, no commitment, just intelligent assistance.
+                Toodyloo is free, fast, and powered by OpenAI. Create your first AI-generated task
+                list in under a minute. No credit card, no commitment.
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
                 <Button
@@ -306,7 +230,7 @@ function App() {
                   className="gap-2 text-base px-8 h-12 bg-background text-foreground hover:bg-background/90"
                 >
                   <Link to="/login">
-                    Start Free Today
+                    Create a Free Account
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -325,7 +249,7 @@ function App() {
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>Cancel Anytime</span>
+                  <span>Free Forever</span>
                 </div>
               </div>
             </div>
