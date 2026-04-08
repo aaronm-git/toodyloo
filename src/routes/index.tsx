@@ -1,18 +1,16 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import {
-  CheckCircle2,
-  ListTodo,
-  TrendingUp,
-  Calendar,
-  AlertCircle,
-  Clock,
-  FolderKanban,
-  Target,
   ArrowRight,
-  Sun,
-  Moon,
+  Calendar,
+  CheckCircle2,
+  FolderKanban,
+  ListTodo,
   Monitor,
+  Moon,
   Sparkles,
+  Sun,
+  Target,
+  TrendingUp,
 } from 'lucide-react'
 import { useSession } from '../lib/auth-client'
 import { useTheme } from '../components/theme-provider'
@@ -31,8 +29,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu'
-import { useSuspenseQuery } from '@tanstack/react-query'
-import { getTodoStats } from '../lib/server/todos'
 import { Hero203 } from '../components/hero203'
 
 export const Route = createFileRoute('/')({ component: App })
@@ -40,21 +36,22 @@ export const Route = createFileRoute('/')({ component: App })
 function App() {
   const { data: session } = useSession()
   const { theme, setTheme } = useTheme()
-  const { data: stats } = useSuspenseQuery({
-    queryKey: ['todo-stats'],
-    queryFn: () => getTodoStats(),
-  })
 
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header with Theme Toggle */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="container flex h-14 items-center justify-between px-4 md:px-6 mx-auto">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <Link
+            to="/"
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
             <ListTodo className="h-6 w-6 text-primary" />
             <div className="flex flex-col">
               <span className="font-bold text-lg leading-none">Toodyloo</span>
-              <span className="text-xs text-muted-foreground leading-none hidden sm:block">AI Driven To-Do App</span>
+              <span className="text-xs text-muted-foreground leading-none hidden sm:block">
+                AI Driven To-Do App
+              </span>
             </div>
           </Link>
           <DropdownMenu>
@@ -94,7 +91,10 @@ function App() {
         <div className="container px-4 md:px-6 mx-auto">
           <div className="flex flex-col items-center space-y-8 text-center">
             <div className="space-y-6">
-              <Badge variant="secondary" className="mb-4 px-4 py-1.5 text-sm font-medium">
+              <Badge
+                variant="secondary"
+                className="mb-4 px-4 py-1.5 text-sm font-medium"
+              >
                 <Sparkles className="mr-1.5 h-3.5 w-3.5" />
                 Powered by AI • The Future of Task Management
               </Badge>
@@ -104,8 +104,10 @@ function App() {
                 <span className="text-primary">for Getting Things Done.</span>
               </h1>
               <p className="mx-auto max-w-[800px] text-lg text-muted-foreground md:text-xl lg:text-2xl leading-relaxed">
-                <strong className="text-foreground">Toodyloo</strong> uses advanced AI to understand your goals, suggest tasks, 
-                prioritize what matters, and help you accomplish more. Just tell it what you need—in plain English—and watch it work.
+                <strong className="text-foreground">Toodyloo</strong> uses
+                advanced AI to understand your goals, suggest tasks, prioritize
+                what matters, and help you accomplish more. Just tell it what
+                you need—in plain English—and watch it work.
               </p>
             </div>
 
@@ -125,7 +127,11 @@ function App() {
                 </>
               ) : (
                 <>
-                  <Button asChild size="lg" className="gap-2 text-base px-8 h-12">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="gap-2 text-base px-8 h-12"
+                  >
                     <Link to="/login">
                       Start Free Today
                       <ArrowRight className="h-4 w-4" />
@@ -159,199 +165,6 @@ function App() {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="w-full py-16 md:py-20 border-b bg-muted/30">
-        <div className="container px-4 mx-auto md:px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-3">
-              AI-Powered Insights at Your Fingertips
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Our AI analyzes your productivity patterns and shows you exactly where you're excelling. 
-              Every task completed teaches the AI how to help you better.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Total Tasks */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Tasks
-                </CardTitle>
-                <ListTodo className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalTasks}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stats.pendingTasks} pending
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Completed Tasks */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completed</CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.completedTasks}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stats.completionRate}% completion rate
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Recently Completed */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">This Week</CardTitle>
-                <TrendingUp className="h-4 w-4 text-blue-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {stats.recentlyCompleted}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Completed last 7 days
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Categories */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Lists
-                </CardTitle>
-                <FolderKanban className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {stats.totalCategories}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Active categories
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Due Tasks & Priority Stats */}
-      <section className="w-full py-12 md:py-16 bg-muted">
-        <div className="container px-4 md:px-6 mx-auto">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Due Soon Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Upcoming Deadlines
-                </CardTitle>
-                <CardDescription>
-                  Tasks that need your attention soon
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-red-500" />
-                    <span className="text-sm font-medium">Overdue</span>
-                  </div>
-                  <Badge
-                    variant={
-                      stats.overdueTasks > 0 ? 'destructive' : 'secondary'
-                    }
-                  >
-                    {stats.overdueTasks}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-orange-500" />
-                    <span className="text-sm font-medium">Due Today</span>
-                  </div>
-                  <Badge
-                    variant={stats.tasksDueToday > 0 ? 'default' : 'secondary'}
-                  >
-                    {stats.tasksDueToday}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium">Due Tomorrow</span>
-                  </div>
-                  <Badge variant="secondary">{stats.tasksDueTomorrow}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Due This Week</span>
-                  </div>
-                  <Badge variant="outline">{stats.tasksDueThisWeek}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Priority Distribution Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Priority Distribution
-                </CardTitle>
-                <CardDescription>
-                  Tasks organized by priority level
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-purple-500" />
-                    <span className="text-sm font-medium">Critical</span>
-                  </div>
-                  <Badge variant="outline">
-                    {stats.priorityStats.critical}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-red-500" />
-                    <span className="text-sm font-medium">Urgent</span>
-                  </div>
-                  <Badge variant="outline">{stats.priorityStats.urgent}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-orange-500" />
-                    <span className="text-sm font-medium">High</span>
-                  </div>
-                  <Badge variant="outline">{stats.priorityStats.high}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                    <span className="text-sm font-medium">Medium</span>
-                  </div>
-                  <Badge variant="outline">{stats.priorityStats.medium}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-green-500" />
-                    <span className="text-sm font-medium">Low</span>
-                  </div>
-                  <Badge variant="outline">{stats.priorityStats.low}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
       {/* Features Section */}
       <section className="w-full py-16 md:py-20">
         <div className="container px-4 md:px-6 mx-auto">
@@ -360,7 +173,8 @@ function App() {
               Everything You Need to Succeed
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Powerful features designed to help you accomplish more, stress less, and stay organized effortlessly.
+              Powerful features designed to help you accomplish more, stress
+              less, and stay organized effortlessly.
             </p>
           </div>
 
@@ -370,12 +184,14 @@ function App() {
                 <div className="mb-3 text-primary">
                   <Target className="h-10 w-10" />
                 </div>
-                <CardTitle className="text-xl mb-2">Focus on What Matters</CardTitle>
+                <CardTitle className="text-xl mb-2">
+                  Focus on What Matters
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Smart priority management helps you tackle critical tasks first. 
-                  Never waste time on low-value work again.
+                  Smart priority management helps you tackle critical tasks
+                  first. Never waste time on low-value work again.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -385,12 +201,15 @@ function App() {
                 <div className="mb-3 text-primary">
                   <FolderKanban className="h-10 w-10" />
                 </div>
-                <CardTitle className="text-xl mb-2">Organize Your Life</CardTitle>
+                <CardTitle className="text-xl mb-2">
+                  Organize Your Life
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Custom lists and color-coded tags let you organize tasks 
-                  your way. Find anything instantly, no matter how complex your workflow.
+                  Custom lists and color-coded tags let you organize tasks your
+                  way. Find anything instantly, no matter how complex your
+                  workflow.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -400,12 +219,15 @@ function App() {
                 <div className="mb-3 text-primary">
                   <ListTodo className="h-10 w-10" />
                 </div>
-                <CardTitle className="text-xl mb-2">Break Down Big Goals</CardTitle>
+                <CardTitle className="text-xl mb-2">
+                  Break Down Big Goals
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Turn overwhelming projects into manageable steps. Create subtasks 
-                  and nested hierarchies to track progress on complex initiatives.
+                  Turn overwhelming projects into manageable steps. Create
+                  subtasks and nested hierarchies to track progress on complex
+                  initiatives.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -415,12 +237,14 @@ function App() {
                 <div className="mb-3 text-primary">
                   <Calendar className="h-10 w-10" />
                 </div>
-                <CardTitle className="text-xl mb-2">Never Miss a Deadline</CardTitle>
+                <CardTitle className="text-xl mb-2">
+                  Never Miss a Deadline
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Visual reminders and smart due date tracking ensure you're always 
-                  on top of what's coming up. Stay ahead, never behind.
+                  Visual reminders and smart due date tracking ensure you're
+                  always on top of what's coming up. Stay ahead, never behind.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -430,11 +254,13 @@ function App() {
                 <div className="mb-3 text-primary">
                   <TrendingUp className="h-10 w-10" />
                 </div>
-                <CardTitle className="text-xl mb-2">See Your Progress</CardTitle>
+                <CardTitle className="text-xl mb-2">
+                  See Your Progress
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Real-time statistics and completion rates show you exactly how 
+                  Real-time statistics and completion rates show you exactly how
                   productive you've been. Celebrate wins and stay motivated.
                 </CardDescription>
               </CardContent>
@@ -449,8 +275,9 @@ function App() {
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Instant updates and seamless syncing mean you spend less time 
-                  waiting and more time doing. Optimistic UI keeps you moving forward.
+                  Instant updates and seamless syncing mean you spend less time
+                  waiting and more time doing. Optimistic UI keeps you moving
+                  forward.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -467,11 +294,17 @@ function App() {
                 Ready to Experience AI-Powered Productivity?
               </h2>
               <p className="mx-auto text-lg md:text-xl text-primary-foreground/90 leading-relaxed">
-                Join thousands who've already discovered how AI can transform their task management. 
-                Start your free account today—no credit card required, no commitment, just intelligent assistance.
+                Join thousands who've already discovered how AI can transform
+                their task management. Start your free account today—no credit
+                card required, no commitment, just intelligent assistance.
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
-                <Button asChild size="lg" variant="secondary" className="gap-2 text-base px-8 h-12 bg-background text-foreground hover:bg-background/90">
+                <Button
+                  asChild
+                  size="lg"
+                  variant="secondary"
+                  className="gap-2 text-base px-8 h-12 bg-background text-foreground hover:bg-background/90"
+                >
                   <Link to="/login">
                     Start Free Today
                     <ArrowRight className="h-4 w-4" />

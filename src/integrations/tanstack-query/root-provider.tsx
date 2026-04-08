@@ -1,4 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+
+import { REACT_QUERY_PERSIST_KEY } from '../../lib/anonymous-cache'
 
 /**
  * Creates a QueryClient with optimized settings for optimistic updates.
@@ -39,7 +43,29 @@ export function Provider({
   children: React.ReactNode
   queryClient: QueryClient
 }) {
+  if (typeof window === 'undefined') {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+  }
+
+  const persister = createSyncStoragePersister({
+    storage: window.localStorage,
+    key: REACT_QUERY_PERSIST_KEY,
+  })
+
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 1000 * 60 * 60 * 24 * 30,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => query.meta?.persist === true,
+        },
+      }}
+    >
+      {children}
+    </PersistQueryClientProvider>
   )
 }

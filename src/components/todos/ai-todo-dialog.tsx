@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Sparkles, AlertCircle } from 'lucide-react'
+import { AlertCircle, Sparkles } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -19,16 +20,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '../ui/accordion'
-import { toast } from 'sonner'
 import { getAIUsage } from '../../lib/server/ai'
-import type { TodoWithRelations, ListWithCount } from '../../lib/tasks'
+import type { TodoWithRelations } from '../../lib/tasks'
 
 interface AITodoDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: (todo: TodoWithRelations) => void
   onStartGeneration: (prompt: string) => void
-  categories: ListWithCount[] // Prop name kept as 'categories' for backwards compat with dashboard
 }
 
 const examplePrompts = [

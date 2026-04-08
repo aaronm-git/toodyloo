@@ -1,10 +1,24 @@
 import { toast } from 'sonner'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Plus, LogOut, Sun, Moon, Monitor, Menu, Sparkles, ClipboardList } from 'lucide-react'
-import { useSession, signOut } from '../lib/auth-client'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ClipboardList, LogOut, Menu, Monitor, Moon, Plus, Sparkles, Sun } from 'lucide-react'
+import { getSession, signOut, useSession } from '../lib/auth-client'
+import { isAnonymousUser } from '../lib/anonymous-cache'
+import {
+  createAnonymousList,
+  createAnonymousSubtask,
+  createAnonymousTodo,
+  createAnonymousTodoFromAi,
+  recomputeAnonymousListCounts,
+  toggleAnonymousSubtask,
+  toggleAnonymousTodo,
+  updateAnonymousList,
+  updateAnonymousSubtask,
+  updateAnonymousTodo,
+} from '../lib/anonymous-data'
 import { useTheme } from '../components/theme-provider'
+import { useAnonymousCacheGuard } from '../hooks/use-anonymous-cache-guard'
 import { useIsMobile } from '../hooks/use-mobile'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
@@ -35,53 +49,63 @@ import {
 } from '../components/ui/alert-dialog'
 
 // Optimistic operations
-import { mutationKeys, type MutationMeta, type DraftTodo, useActivityDrawer } from '../lib/optimistic-operations'
+import {   mutationKeys, useActivityDrawer } from '../lib/optimistic-operations'
 
 // Server functions
 import {
-  getTodos,
   createTodo,
-  updateTodo,
   deleteTodo,
+  getTodos,
   toggleTodoComplete,
+  updateTodo,
 } from '../lib/server/todos'
 import {
-  getLists,
   createList,
-  updateList,
   deleteList,
+  getLists,
+  updateList,
 } from '../lib/server/categories'
 import {
   createSubtask,
-  updateSubtask,
   deleteSubtask,
   toggleSubtaskComplete,
+  updateSubtask,
 } from '../lib/server/subtasks'
-import { generateTodoWithAI } from '../lib/server/ai'
+import { generateAnonymousTodoWithAI, generateTodoWithAI } from '../lib/server/ai'
 
 // Components
 import { TodoList } from '../components/todos/todo-list'
 import { Details } from '../components/details'
 import { AITodoDialog } from '../components/todos/ai-todo-dialog'
-import { TodoFilters, type TodoFilters as TodoFiltersType } from '../components/todos/todo-filters'
+import { TodoFilters  } from '../components/todos/todo-filters'
 import { Sidebar } from '../components/sidebar'
-import { ListDialog, type ListFormData } from '../components/lists/list-dialog'
-
-import type {
-  TodoWithRelations,
-  ListWithCount,
-  CreateTodoInput,
-  UpdateTodoInput,
-  CreateListInput,
-  UpdateListInput,
-  Subtask,
-  CreateSubtaskInput,
-  UpdateSubtaskInput,
-  Priority,
-} from '../lib/tasks'
+import { ListDialog  } from '../components/lists/list-dialog'
 import { todoWithRelationsSchema } from '../lib/tasks'
+import type {ListFormData} from '../components/lists/list-dialog';
+
+import type {DraftTodo, MutationMeta} from '../lib/optimistic-operations';
+import type {TodoFilters as TodoFiltersType} from '../components/todos/todo-filters';
+import type {
+  CreateListInput,
+  CreateSubtaskInput,
+  CreateTodoInput,
+  ListWithCount,
+  Priority,
+  Subtask,
+  TodoWithRelations,
+  UpdateListInput,
+  UpdateSubtaskInput,
+  UpdateTodoInput,
+} from '../lib/tasks'
 
 export const Route = createFileRoute('/dashboard')({
+  beforeLoad: async () => {
+    const session = await getSession()
+
+    if (!session.data?.user) {
+      throw redirect({ to: '/login' })
+    }
+  },
   component: DashboardPage,
 })
 
@@ -89,9 +113,11 @@ function DashboardPage() {
   const { data: session, isPending: sessionLoading } = useSession()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const anonymousCacheReady = useAnonymousCacheGuard()
   const { theme, setTheme } = useTheme()
   const isMobile = useIsMobile()
   const { openDrawer } = useActivityDrawer()
+  const isAnonymous = isAnonymousUser(session?.user)
 
   // State for dialogs (only keeping AI dialog and List dialog)
   const [aiTodoDialogOpen, setAiTodoDialogOpen] = useState(false)
@@ -126,6 +152,21 @@ function DashboardPage() {
     status: 'all',
   })
 
+  const syncAnonymousListCounts = useCallback(
+    (nextTodos?: Array<TodoWithRelations>) => {
+      if (!isAnonymous) return
+
+      const currentTodos =
+        nextTodos ??
+        ((queryClient.getQueryData(['todos']) as Array<TodoWithRelations> | undefined) ?? [])
+      const currentLists =
+        (queryClient.getQueryData(['lists']) as Array<ListWithCount> | undefined) ?? []
+
+      queryClient.setQueryData(['lists'], recomputeAnonymousListCounts(currentLists, currentTodos))
+    },
+    [isAnonymous, queryClient],
+  )
+
   // Queries
   // Note: We use the cached todos directly instead of useOptimisticData hook
   // because EditableInput components manage their own local state for optimistic display.
@@ -136,7 +177,16 @@ function DashboardPage() {
     isLoading: todosLoading,
   } = useQuery({
     queryKey: ['todos'],
-    queryFn: () => getTodos({}),
+    queryFn: () =>
+      isAnonymous
+        ? Promise.resolve(
+            (queryClient.getQueryData(['todos']) as Array<TodoWithRelations> | undefined) ?? [],
+          )
+        : getTodos({}),
+    enabled: !isAnonymous || anonymousCacheReady,
+    meta: {
+      persist: isAnonymous,
+    },
   })
 
   // Update selected todo when todos data changes
@@ -154,13 +204,25 @@ function DashboardPage() {
     isLoading: listsLoading,
   } = useQuery({
     queryKey: ['lists'],
-    queryFn: () => getLists({}),
+    queryFn: () =>
+      isAnonymous
+        ? Promise.resolve(
+            (queryClient.getQueryData(['lists']) as Array<ListWithCount> | undefined) ?? [],
+          )
+        : getLists({}),
+    enabled: !isAnonymous || anonymousCacheReady,
+    meta: {
+      persist: isAnonymous,
+    },
   })
 
   // Mutations with optimistic updates and tracking via mutation keys
   const createTodoMutation = useMutation({
     mutationKey: mutationKeys.todos.create(),
-    mutationFn: (data: CreateTodoInput) => createTodo({ data }),
+    mutationFn: (data: CreateTodoInput) =>
+      isAnonymous && session?.user
+        ? Promise.resolve(createAnonymousTodo(queryClient, session.user.id, data))
+        : createTodo({ data }),
     meta: {
       operationType: 'create',
       entityType: 'todo',
@@ -177,8 +239,8 @@ function DashboardPage() {
       const optimisticTodo = {
         id: tempId,
         name: newTodo.name,
-        description: newTodo.description ?? '',
-        priority: newTodo.priority ?? 'low',
+        description: newTodo.description,
+        priority: newTodo.priority,
         isComplete: false,
         dueDate: newTodo.dueDate ?? null,
         createdAt: new Date(),
@@ -199,21 +261,26 @@ function DashboardPage() {
     },
     onSuccess: (serverTodo, _variables, context) => {
       // Replace temp todo with server todo (has real ID)
-      if (serverTodo && context?.tempId) {
-        queryClient.setQueryData(['todos'], (old: typeof todos = []) =>
-          old.map((todo) =>
-            todo.id === context.tempId ? serverTodo : todo
-          )
-        )
+      const currentTodos =
+        (queryClient.getQueryData(['todos']) as Array<TodoWithRelations> | undefined) ?? []
+      const nextTodos = currentTodos.map((todo) =>
+        todo.id === context.tempId ? serverTodo : todo,
+      )
+      queryClient.setQueryData(['todos'], nextTodos)
+      if (isAnonymous) {
+        syncAnonymousListCounts(nextTodos)
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['lists'] })
       }
-      // Invalidate lists to update counts
-      queryClient.invalidateQueries({ queryKey: ['lists'] })
     },
   })
 
   const updateTodoMutation = useMutation({
     mutationKey: mutationKeys.todos.update('batch'),
-    mutationFn: (data: UpdateTodoInput) => updateTodo({ data }),
+    mutationFn: (data: UpdateTodoInput) =>
+      isAnonymous
+        ? Promise.resolve(updateAnonymousTodo(queryClient, data))
+        : updateTodo({ data }),
     meta: {
       operationType: 'update',
       entityType: 'todo',
@@ -230,18 +297,21 @@ function DashboardPage() {
       // Update cache AFTER mutation completes (success or failure)
       // This happens after the user has finished typing
       if (!error && serverTodo) {
-        queryClient.setQueryData(['todos'], (old: typeof todos = []) =>
-          old.map((todo) =>
-            todo.id === serverTodo.id ? { ...todo, ...serverTodo } : todo
+        const nextTodos =
+          ((queryClient.getQueryData(['todos']) as Array<TodoWithRelations> | undefined) ?? []).map(
+            (todo) => (todo.id === serverTodo.id ? { ...todo, ...serverTodo } : todo),
           )
-        )
+        queryClient.setQueryData(['todos'], nextTodos)
+        if (isAnonymous) {
+          syncAnonymousListCounts(nextTodos)
+        }
         // selectedTodo is synced automatically via useEffect when todos changes
       } else if (error) {
         // On error, refetch to get true server state
         queryClient.invalidateQueries({ queryKey: ['todos'] })
       }
       // Update list counts if list assignment changed
-      if (variables.listId !== undefined) {
+      if (!isAnonymous && variables.listId !== undefined) {
         queryClient.invalidateQueries({ queryKey: ['lists'] })
       }
     },
@@ -249,7 +319,8 @@ function DashboardPage() {
 
   const toggleCompleteMutation = useMutation({
     mutationKey: mutationKeys.todos.toggle('batch'),
-    mutationFn: (id: string) => toggleTodoComplete({ data: id }),
+    mutationFn: (id: string) =>
+      isAnonymous ? Promise.resolve(toggleAnonymousTodo(queryClient, id)) : toggleTodoComplete({ data: id }),
     meta: {
       operationType: 'update',
       entityType: 'todo',
@@ -278,26 +349,25 @@ function DashboardPage() {
     onSuccess: (serverTodo) => {
       // Merge server response without refetch
       // selectedTodo is synced automatically via useEffect when todos changes
-      if (serverTodo) {
-        queryClient.setQueryData(['todos'], (old: typeof todos = []) =>
-          old.map((todo) =>
-            todo.id === serverTodo.id ? { ...todo, ...serverTodo } : todo
-          )
+      queryClient.setQueryData(['todos'], (old: typeof todos = []) =>
+        old.map((todo) =>
+          todo.id === serverTodo.id ? { ...todo, ...serverTodo } : todo
         )
-      }
+      )
     },
   })
 
   const deleteTodoMutation = useMutation({
     mutationKey: mutationKeys.todos.delete('batch'),
-    mutationFn: (id: string) => deleteTodo({ data: id }),
+    mutationFn: (id: string) =>
+      isAnonymous ? Promise.resolve(id) : deleteTodo({ data: id }),
     meta: {
       operationType: 'delete',
       entityType: 'todo',
       // Get the entity name from the cache before deletion
       getEntityName: (vars: unknown) => {
         const id = vars as string
-        const cachedTodos = queryClient.getQueryData(['todos']) as typeof todos | undefined
+        const cachedTodos = queryClient.getQueryData(['todos'])
         const todo = cachedTodos?.find(t => t.id === id)
         return todo?.name || 'Task'
       },
@@ -307,7 +377,7 @@ function DashboardPage() {
       const previousTodos = queryClient.getQueryData(['todos'])
       
       // Get the todo name before removing for activity log
-      const deletedTodo = (previousTodos as typeof todos)?.find(t => t.id === id)
+      const deletedTodo = (previousTodos as typeof todos).find(t => t.id === id)
       
       queryClient.setQueryData(['todos'], (old: typeof todos = []) =>
         old.filter((todo) => todo.id !== id)
@@ -324,21 +394,34 @@ function DashboardPage() {
       queryClient.setQueryData(['todos'], context?.previousTodos)
     },
     onSuccess: () => {
-      // Only invalidate lists to update counts
-      queryClient.invalidateQueries({ queryKey: ['lists'] })
+      if (isAnonymous) {
+        syncAnonymousListCounts()
+      } else {
+        // Only invalidate lists to update counts
+        queryClient.invalidateQueries({ queryKey: ['lists'] })
+      }
     },
   })
 
   const createListMutation = useMutation({
     mutationKey: mutationKeys.lists.create(),
-    mutationFn: (data: CreateListInput) => createList({ data }),
+    mutationFn: (data: CreateListInput) =>
+      isAnonymous && session?.user
+        ? Promise.resolve(createAnonymousList(session.user.id, data))
+        : createList({ data }),
     meta: {
       operationType: 'create',
       entityType: 'list',
       getEntityName: (vars: unknown) => (vars as CreateListInput).name || 'New list',
     } as MutationMeta,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lists'] })
+    onSuccess: (createdList) => {
+      if (isAnonymous) {
+        const currentLists =
+          (queryClient.getQueryData(['lists']) as Array<ListWithCount> | undefined) ?? []
+        queryClient.setQueryData(['lists'], [...currentLists, createdList])
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['lists'] })
+      }
       setListDialogOpen(false)
       setEditingList(null)
     },
@@ -346,14 +429,34 @@ function DashboardPage() {
 
   const updateListMutation = useMutation({
     mutationKey: mutationKeys.lists.update('batch'),
-    mutationFn: (data: UpdateListInput) => updateList({ data }),
+    mutationFn: (data: UpdateListInput) =>
+      isAnonymous
+        ? Promise.resolve(updateAnonymousList(queryClient, data))
+        : updateList({ data }),
     meta: {
       operationType: 'update',
       entityType: 'list',
       getEntityName: (vars: unknown) => (vars as UpdateListInput).name || 'List',
     } as MutationMeta,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lists'] })
+    onSuccess: (updatedList) => {
+      if (isAnonymous) {
+        const currentLists =
+          (queryClient.getQueryData(['lists']) as Array<ListWithCount> | undefined) ?? []
+        queryClient.setQueryData(
+          ['lists'],
+          currentLists.map((list) => (list.id === updatedList.id ? updatedList : list)),
+        )
+        const currentTodos =
+          (queryClient.getQueryData(['todos']) as Array<TodoWithRelations> | undefined) ?? []
+        queryClient.setQueryData(
+          ['todos'],
+          currentTodos.map((todo) =>
+            todo.listId === updatedList.id ? { ...todo, list: updatedList } : todo,
+          ),
+        )
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['lists'] })
+      }
       setListDialogOpen(false)
       setEditingList(null)
     },
@@ -361,15 +464,31 @@ function DashboardPage() {
 
   const deleteListMutation = useMutation({
     mutationKey: mutationKeys.lists.delete('batch'),
-    mutationFn: (id: string) => deleteList({ data: id }),
+    mutationFn: (id: string) =>
+      isAnonymous ? Promise.resolve(id) : deleteList({ data: id }),
     meta: {
       operationType: 'delete',
       entityType: 'list',
       getEntityName: () => 'List',
     } as MutationMeta,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lists'] })
-      queryClient.invalidateQueries({ queryKey: ['todos'] })
+    onSuccess: (_deletedId, id) => {
+      if (isAnonymous) {
+        const currentLists =
+          (queryClient.getQueryData(['lists']) as Array<ListWithCount> | undefined) ?? []
+        queryClient.setQueryData(
+          ['lists'],
+          currentLists.filter((list) => list.id !== id),
+        )
+        const currentTodos =
+          (queryClient.getQueryData(['todos']) as Array<TodoWithRelations> | undefined) ?? []
+        const nextTodos = currentTodos.map((todo) =>
+          todo.listId === id ? { ...todo, listId: null, list: null } : todo,
+        )
+        queryClient.setQueryData(['todos'], nextTodos)
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['lists'] })
+        queryClient.invalidateQueries({ queryKey: ['todos'] })
+      }
       if (filters.categoryId) {
         setFilters((prev) => ({ ...prev, categoryId: null }))
       }
@@ -379,7 +498,10 @@ function DashboardPage() {
   // Subtask mutations with optimistic updates
   const createSubtaskMutation = useMutation({
     mutationKey: mutationKeys.subtasks.create(),
-    mutationFn: (data: CreateSubtaskInput) => createSubtask({ data }),
+    mutationFn: (data: CreateSubtaskInput) =>
+      isAnonymous
+        ? Promise.resolve(createAnonymousSubtask(queryClient, data))
+        : createSubtask({ data }),
     meta: {
       operationType: 'create',
       entityType: 'subtask',
@@ -420,26 +542,27 @@ function DashboardPage() {
     },
     onSuccess: (serverSubtask, _variables, context) => {
       // Replace temp subtask with server subtask
-      if (serverSubtask && context?.tempId) {
-        queryClient.setQueryData(['todos'], (old: typeof todos = []) =>
-          old.map((todo) =>
-            todo.id === context.todoId
-              ? {
-                  ...todo,
-                  subtasks: todo.subtasks?.map((st: Subtask) =>
-                    st.id === context.tempId ? serverSubtask : st
-                  ),
-                }
-              : todo
-          )
+      queryClient.setQueryData(['todos'], (old: typeof todos = []) =>
+        old.map((todo) =>
+          todo.id === context.todoId
+            ? {
+                ...todo,
+                subtasks: todo.subtasks?.map((st: Subtask) =>
+                  st.id === context.tempId ? serverSubtask : st
+                ),
+              }
+            : todo
         )
-      }
+      )
     },
   })
 
   const updateSubtaskMutation = useMutation({
     mutationKey: mutationKeys.subtasks.update('batch'),
-    mutationFn: (data: UpdateSubtaskInput) => updateSubtask({ data }),
+    mutationFn: (data: UpdateSubtaskInput) =>
+      isAnonymous
+        ? Promise.resolve(updateAnonymousSubtask(queryClient, data))
+        : updateSubtask({ data }),
     meta: {
       operationType: 'update',
       entityType: 'subtask',
@@ -468,14 +591,15 @@ function DashboardPage() {
 
   const deleteSubtaskMutation = useMutation({
     mutationKey: mutationKeys.subtasks.delete('batch'),
-    mutationFn: (id: string) => deleteSubtask({ data: id }),
+    mutationFn: (id: string) =>
+      isAnonymous ? Promise.resolve(id) : deleteSubtask({ data: id }),
     meta: {
       operationType: 'delete',
       entityType: 'subtask',
       // Get the subtask name from the cache before deletion
       getEntityName: (vars: unknown) => {
         const id = vars as string
-        const cachedTodos = queryClient.getQueryData(['todos']) as typeof todos | undefined
+        const cachedTodos = queryClient.getQueryData(['todos'])
         for (const todo of cachedTodos || []) {
           const subtask = todo.subtasks?.find((st: Subtask) => st.id === id)
           if (subtask) return subtask.name
@@ -507,7 +631,10 @@ function DashboardPage() {
 
   const toggleSubtaskCompleteMutation = useMutation({
     mutationKey: mutationKeys.subtasks.toggle('batch'),
-    mutationFn: (id: string) => toggleSubtaskComplete({ data: id }),
+    mutationFn: (id: string) =>
+      isAnonymous
+        ? Promise.resolve(toggleAnonymousSubtask(queryClient, id))
+        : toggleSubtaskComplete({ data: id }),
     meta: {
       operationType: 'update',
       entityType: 'subtask',
@@ -562,15 +689,24 @@ function DashboardPage() {
   const generateAITodoMutation = useMutation({
     mutationKey: mutationKeys.ai.generateTodo(),
     mutationFn: async ({ prompt, tempId }: { prompt: string; tempId: string }) => {
+      if (isAnonymous && session?.user) {
+        const generated = await generateAnonymousTodoWithAI({
+          data: {
+            prompt,
+            availableLists: lists.map((list) => list.name),
+          },
+        })
+
+        return {
+          todo: createAnonymousTodoFromAi(queryClient, session.user.id, generated),
+          tempId,
+        }
+      }
+
       const result = await generateTodoWithAI({
-        data: {
-          prompt,
-          lists: lists.map((c) => ({ id: c.id, name: c.name })),
-        },
+        data: { prompt },
       })
-      // Parse and validate the result
-      const parsedTodo = todoWithRelationsSchema.parse(result)
-      return { todo: parsedTodo, tempId }
+      return { todo: todoWithRelationsSchema.parse(result), tempId }
     },
     retry: false,
     meta: {
@@ -590,9 +726,19 @@ function DashboardPage() {
             : t
         )
       )
-      // Invalidate to ensure the real todo is in the main list
-      queryClient.invalidateQueries({ queryKey: ['todos'] })
-      queryClient.invalidateQueries({ queryKey: ['lists'] })
+
+      if (isAnonymous) {
+        const currentTodos =
+          (queryClient.getQueryData(['todos']) as Array<TodoWithRelations> | undefined) ?? []
+        const nextTodos = [todo, ...currentTodos]
+        queryClient.setQueryData(['todos'], nextTodos)
+        syncAnonymousListCounts(nextTodos)
+      } else {
+        // Invalidate to ensure the real todo is in the main list
+        queryClient.invalidateQueries({ queryKey: ['todos'] })
+        queryClient.invalidateQueries({ queryKey: ['lists'] })
+      }
+
       queryClient.invalidateQueries({ queryKey: ['ai-usage'] })
       
       // After fade animation completes (300ms), remove from AI loading list
@@ -600,11 +746,9 @@ function DashboardPage() {
       setTimeout(() => {
         setAiLoadingTodos((prev) => prev.filter((t) => t.tempId !== tempId))
         // Select the new todo after it's fully transitioned
-        if (todo) {
-          setSelectedTodo(todo)
-          if (isMobile) {
-            setDetailsOpen(true)
-          }
+        setSelectedTodo(todo)
+        if (isMobile) {
+          setDetailsOpen(true)
         }
       }, 350)
     },
@@ -688,9 +832,7 @@ function DashboardPage() {
         onSuccess: (newTodo) => {
           // Clear the draft and select the new todo
           setDraft(null)
-          if (newTodo) {
-            setSelectedTodo(newTodo)
-          }
+          setSelectedTodo(newTodo)
         },
         onError: () => {
           // Reset draft persisting state so user can try again
@@ -903,7 +1045,7 @@ function DashboardPage() {
   }, [todos, filters, aiLoadingTodos])
 
   // Auth check
-  if (sessionLoading) {
+  if (sessionLoading || (isAnonymous && !anonymousCacheReady)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-xl">Loading...</div>
@@ -922,7 +1064,7 @@ function DashboardPage() {
         .map((n) => n[0])
         .join('')
         .toUpperCase()
-    : session.user.email?.[0]?.toUpperCase() || 'U'
+    : session.user.email[0].toUpperCase()
 
   // Sidebar content component (reused in desktop and mobile)
   const sidebarContent = (
@@ -1128,7 +1270,6 @@ function DashboardPage() {
         onOpenChange={setAiTodoDialogOpen}
         onSuccess={handleAITodoSuccess}
         onStartGeneration={handleAIStartGeneration}
-        categories={lists}
       />
 
       <ListDialog

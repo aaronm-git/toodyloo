@@ -9,23 +9,22 @@
  */
 
 import { createServerFn } from '@tanstack/react-start'
+import * as Sentry from '@sentry/tanstackstart-react'
+import { and, desc, eq, lt } from 'drizzle-orm'
+import { z } from 'zod'
 import { db } from '../../db'
 import { activityLogs } from '../../db/schema'
-import { eq, desc, lt, and } from 'drizzle-orm'
-import { z } from 'zod'
-import * as Sentry from '@sentry/tanstackstart-react'
 
-import { serverLog, PERF_THRESHOLDS, logIfSlow } from './logging'
+import { isHttpErrorResponse, requireAuthSession, throwNotFound } from './auth'
+import { PERF_THRESHOLDS, logIfSlow, serverLog } from './logging'
 
-// Input schemas
 const createActivitySchema = z.object({
   operationType: z.enum(['create', 'update', 'delete']),
   entityType: z.enum(['todo', 'subtask', 'list', 'ai-todo']),
   entityId: z.string().nullable().optional(),
   entityName: z.string(),
   maxRetries: z.number().default(3),
-  userId: z.string().nullable().optional(),
-  startedAt: z.date().optional(), // Optional timestamp to ensure consistency with entity updates
+  startedAt: z.date().optional(),
 })
 
 const updateActivitySchema = z.object({
@@ -38,14 +37,11 @@ const updateActivitySchema = z.object({
   completedAt: z.date().optional(),
 })
 
-// Cursor-based pagination schema
 const getActivityLogsSchema = z.object({
   limit: z.number().min(1).max(100).default(20),
-  cursor: z.string().nullable().optional(), // ISO date string of last item's startedAt
-  userId: z.string().nullable().optional(),
+  cursor: z.string().nullable().optional(),
 })
 
-// Type exports
 export type CreateActivityInput = z.infer<typeof createActivitySchema>
 export type UpdateActivityInput = z.infer<typeof updateActivitySchema>
 export type GetActivityLogsInput = z.infer<typeof getActivityLogsSchema>
@@ -63,35 +59,25 @@ export interface ActivityLogRecord {
   maxRetries: number
   startedAt: Date
   completedAt: Date | null
-  userId: string | null
+  userId: string
 }
 
 export interface ActivityLogsPage {
-  items: ActivityLogRecord[]
+  items: Array<ActivityLogRecord>
   nextCursor: string | null
   hasMore: boolean
 }
 
-/**
- * Create a new activity log entry
- * Called when an operation starts
- */
 export const createActivityLog = createServerFn({ method: 'POST' })
   .inputValidator(createActivitySchema)
   .handler(async (ctx): Promise<ActivityLogRecord> => {
     return Sentry.startSpan({ name: 'createActivityLog', op: 'db.insert' }, async () => {
       const startTime = Date.now()
-      const {
-        operationType,
-        entityType,
-        entityId,
-        entityName,
-        maxRetries,
-        userId,
-        startedAt,
-      } = ctx.data
+      const { operationType, entityType, entityId, entityName, maxRetries, startedAt } = ctx.data
 
       try {
+        const session = await requireAuthSession()
+
         const insertValues = {
           operationType,
           entityType,
@@ -99,7 +85,7 @@ export const createActivityLog = createServerFn({ method: 'POST' })
           entityName,
           status: 'pending' as const,
           maxRetries: String(maxRetries),
-          userId: userId || null,
+          userId: session.user.id,
           ...(startedAt ? { startedAt } : {}),
         }
 
@@ -112,10 +98,12 @@ export const createActivityLog = createServerFn({ method: 'POST' })
           entityType,
           hasEntityId: !!entityId,
           durationMs,
+          userId: session.user.id,
         })
 
         logIfSlow('db.activityLogs.insert', startTime, PERF_THRESHOLDS.DB_QUERY_SLOW, {
           activityId: result.id,
+          userId: session.user.id,
         })
 
         return {
@@ -124,6 +112,10 @@ export const createActivityLog = createServerFn({ method: 'POST' })
           maxRetries: Number(result.maxRetries),
         } as ActivityLogRecord
       } catch (error) {
+        if (isHttpErrorResponse(error)) {
+          throw error
+        }
+
         serverLog.error('activity.log.create.failed', {
           operationType,
           entityType,
@@ -138,10 +130,6 @@ export const createActivityLog = createServerFn({ method: 'POST' })
     })
   })
 
-/**
- * Update an existing activity log entry
- * Called when an operation completes (success or error)
- */
 export const updateActivityLog = createServerFn({ method: 'POST' })
   .inputValidator(updateActivitySchema)
   .handler(async (ctx): Promise<ActivityLogRecord> => {
@@ -151,6 +139,8 @@ export const updateActivityLog = createServerFn({ method: 'POST' })
         ctx.data
 
       try {
+        const session = await requireAuthSession()
+
         const updateData: Record<string, unknown> = { status }
 
         if (entityId !== undefined) updateData.entityId = entityId
@@ -159,21 +149,20 @@ export const updateActivityLog = createServerFn({ method: 'POST' })
         if (retryCount !== undefined) updateData.retryCount = String(retryCount)
         if (completedAt !== undefined) updateData.completedAt = completedAt
 
-        // Set completedAt if status is final and not already set
-        if ((status === 'success' || status === 'error') && !completedAt) {
+        if ((status === 'success' || status === 'error') && completedAt === undefined) {
           updateData.completedAt = new Date()
         }
 
-        const [result] = await db
+        const results = await db
           .update(activityLogs)
           .set(updateData)
-          .where(eq(activityLogs.id, id))
+          .where(and(eq(activityLogs.id, id), eq(activityLogs.userId, session.user.id)))
           .returning()
 
-        if (!result) {
-          serverLog.warn('activity.log.update.notFound', { activityId: id })
-          throw new Error(`Activity log entry ${id} not found`)
+        if (results.length === 0) {
+          throwNotFound(`Activity log entry ${id} not found`)
         }
+        const result = results[0]
 
         const durationMs = Date.now() - startTime
         serverLog.info('activity.log.updated', {
@@ -182,10 +171,12 @@ export const updateActivityLog = createServerFn({ method: 'POST' })
           hasError: !!errorMessage,
           hasSentryEventId: !!sentryEventId,
           durationMs,
+          userId: session.user.id,
         })
 
         logIfSlow('db.activityLogs.update', startTime, PERF_THRESHOLDS.DB_QUERY_SLOW, {
           activityId: id,
+          userId: session.user.id,
         })
 
         return {
@@ -194,26 +185,24 @@ export const updateActivityLog = createServerFn({ method: 'POST' })
           maxRetries: Number(result.maxRetries),
         } as ActivityLogRecord
       } catch (error) {
-        if (!(error instanceof Error && error.message.includes('not found'))) {
-          serverLog.error('activity.log.update.failed', {
-            activityId: id,
-            status,
-            errorType: error instanceof Error ? error.name : 'Unknown',
-          })
-          Sentry.captureException(error, {
-            tags: { component: 'activity', operation: 'updateActivityLog' },
-            extra: { activityId: id, status },
-          })
+        if (isHttpErrorResponse(error)) {
+          throw error
         }
+
+        serverLog.error('activity.log.update.failed', {
+          activityId: id,
+          status,
+          errorType: error instanceof Error ? error.name : 'Unknown',
+        })
+        Sentry.captureException(error, {
+          tags: { component: 'activity', operation: 'updateActivityLog' },
+          extra: { activityId: id, status },
+        })
         throw error
       }
     })
   })
 
-/**
- * Get activity logs with cursor-based pagination
- * Supports infinite scroll by returning a cursor for the next page
- */
 export const getActivityLogs = createServerFn({ method: 'GET' })
   .inputValidator(getActivityLogsSchema)
   .handler(async (ctx): Promise<ActivityLogsPage> => {
@@ -222,12 +211,15 @@ export const getActivityLogs = createServerFn({ method: 'GET' })
       const { limit, cursor } = ctx.data
 
       try {
-        // Build query conditions
-        const conditions = cursor
-          ? lt(activityLogs.startedAt, new Date(cursor))
-          : undefined
+        const session = await requireAuthSession()
 
-        // Fetch one extra to determine if there are more pages
+        const conditions = cursor
+          ? and(
+              eq(activityLogs.userId, session.user.id),
+              lt(activityLogs.startedAt, new Date(cursor)),
+            )
+          : eq(activityLogs.userId, session.user.id)
+
         const results = await db
           .select()
           .from(activityLogs)
@@ -235,38 +227,39 @@ export const getActivityLogs = createServerFn({ method: 'GET' })
           .orderBy(desc(activityLogs.startedAt))
           .limit(limit + 1)
 
-        // Check if there are more results
         const hasMore = results.length > limit
         const items = hasMore ? results.slice(0, limit) : results
-
-        // Get cursor for next page (startedAt of last item)
         const nextCursor =
-          hasMore && items.length > 0
-            ? items[items.length - 1].startedAt.toISOString()
-            : null
+          hasMore && items.length > 0 ? items[items.length - 1].startedAt.toISOString() : null
 
         logIfSlow('db.activityLogs.findMany', startTime, PERF_THRESHOLDS.DB_QUERY_SLOW, {
           limit,
           hasCursor: !!cursor,
           returnedCount: items.length,
+          userId: session.user.id,
         })
 
         serverLog.info('activity.logs.fetched', {
           count: items.length,
           hasMore,
           hasCursor: !!cursor,
+          userId: session.user.id,
         })
 
         return {
-          items: items.map((r) => ({
-            ...r,
-            retryCount: Number(r.retryCount),
-            maxRetries: Number(r.maxRetries),
-          })) as ActivityLogRecord[],
+          items: items.map((record) => ({
+            ...record,
+            retryCount: Number(record.retryCount),
+            maxRetries: Number(record.maxRetries),
+          })) as Array<ActivityLogRecord>,
           nextCursor,
           hasMore,
         }
       } catch (error) {
+        if (isHttpErrorResponse(error)) {
+          throw error
+        }
+
         serverLog.error('activity.logs.fetch.failed', {
           limit,
           hasCursor: !!cursor,
@@ -281,10 +274,6 @@ export const getActivityLogs = createServerFn({ method: 'GET' })
     })
   })
 
-/**
- * Delete old activity logs (for cleanup)
- * Deletes logs older than the specified number of days
- */
 export const cleanupActivityLogs = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
@@ -297,21 +286,22 @@ export const cleanupActivityLogs = createServerFn({ method: 'POST' })
       const { olderThanDays } = ctx.data
 
       try {
+        const session = await requireAuthSession()
         const cutoffDate = new Date()
         cutoffDate.setDate(cutoffDate.getDate() - olderThanDays)
 
         serverLog.info('activity.cleanup.started', {
           olderThanDays,
           cutoffDate: cutoffDate.toISOString(),
+          userId: session.user.id,
         })
 
-        // Delete old completed logs (keep pending ones regardless of age)
         const result = await db
           .delete(activityLogs)
           .where(
             and(
+              eq(activityLogs.userId, session.user.id),
               lt(activityLogs.startedAt, cutoffDate),
-              // Only delete completed operations (not pending)
               eq(activityLogs.status, 'success'),
             ),
           )
@@ -322,14 +312,20 @@ export const cleanupActivityLogs = createServerFn({ method: 'POST' })
           deleted: result.length,
           olderThanDays,
           durationMs,
+          userId: session.user.id,
         })
 
         logIfSlow('db.activityLogs.cleanup', startTime, PERF_THRESHOLDS.DB_QUERY_SLOW, {
           deleted: result.length,
+          userId: session.user.id,
         })
 
         return { deleted: result.length }
       } catch (error) {
+        if (isHttpErrorResponse(error)) {
+          throw error
+        }
+
         serverLog.error('activity.cleanup.failed', {
           olderThanDays,
           errorType: error instanceof Error ? error.name : 'Unknown',

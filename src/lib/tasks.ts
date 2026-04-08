@@ -1,7 +1,7 @@
 import { createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
-import { todos, lists, subtasks, priorityEnum } from '../db/schema'
 import { asc } from 'drizzle-orm'
+import { lists, priorityEnum, subtasks, todos } from '../db/schema'
 
 // =============================================================================
 // BASE SCHEMAS - Generated from Drizzle (Single Source of Truth)
@@ -185,12 +185,6 @@ export const aiGeneratedTodoSchema = z.object({
 // Input schema for AI todo generation
 export const generateTodoInputSchema = z.object({
   prompt: z.string().min(1).max(2000),
-  lists: z.array(
-    z.object({
-      id: z.uuid(),
-      name: z.string(),
-    }),
-  ),
 })
 
 // =============================================================================
@@ -221,7 +215,7 @@ export const priorityLabels: Record<Priority, string> = {
 }
 
 export function getPriorityLabel(priority: Priority): string {
-  return priorityLabels[priority] ?? 'Unknown'
+  return priorityLabels[priority]
 }
 
 // Check if a date is overdue (past the current date)

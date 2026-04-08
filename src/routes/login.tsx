@@ -24,6 +24,7 @@ function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [name, setName] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,6 +37,11 @@ function LoginPage() {
     // Require terms acceptance for sign up
     if (isSignUp && !acceptedTerms) {
       setError('You must accept the Terms of Service and Privacy Policy to create an account')
+      return
+    }
+
+    if (isSignUp && password !== confirmPassword) {
+      setError('Passwords do not match')
       return
     }
 
@@ -63,6 +69,20 @@ function LoginPage() {
       navigate({ to: '/dashboard' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAnonymousSignIn = async () => {
+    setError(null)
+    setLoading(true)
+
+    try {
+      await signIn.anonymous()
+      navigate({ to: '/dashboard' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to continue as guest')
     } finally {
       setLoading(false)
     }
@@ -137,6 +157,19 @@ function LoginPage() {
             </div>
 
             {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <InputPassword
+                  id="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required={isSignUp}
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
+
+            {isSignUp && (
               <div className="flex items-start space-x-2 pt-2">
                 <Checkbox
                   id="terms"
@@ -180,6 +213,17 @@ function LoginPage() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
+          {!isSignUp && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleAnonymousSignIn}
+              disabled={loading}
+            >
+              Continue as guest
+            </Button>
+          )}
           <div className="text-sm text-muted-foreground">
             <button
               type="button"
@@ -187,6 +231,7 @@ function LoginPage() {
                 setIsSignUp(!isSignUp)
                 setError(null)
                 setAcceptedTerms(false)
+                setConfirmPassword('')
               }}
               className="underline underline-offset-4 hover:text-primary"
             >

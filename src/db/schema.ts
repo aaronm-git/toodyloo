@@ -1,12 +1,16 @@
 import {
-  pgTable,
-  uuid,
-  text,
   boolean,
-  timestamp,
+  integer,
+  index,
   pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+import { user } from '../../auth-schema'
 
 export const priorityEnum = pgEnum('priority', [
   'low',
@@ -34,64 +38,81 @@ export type RecurrenceType =
   | 'annually'
   | 'custom'
 
-export const lists = pgTable('lists', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull().unique(),
-  color: text('color'),
-  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp({ withTimezone: true })
-    .defaultNow()
-    .notNull()
-    .$onUpdate(() => new Date()),
-})
+export const lists = pgTable(
+  'lists',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color'),
+    createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp({ withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('lists_user_id_idx').on(table.userId),
+    uniqueIndex('lists_user_id_name_unique').on(table.userId, table.name),
+  ],
+)
 
 // Define todos table first (before todoCategories) to avoid circular reference issues
 // Note: Self-references (parentId, recurringTodoId) use arrow functions to handle circular dependencies
 // TypeScript has limitations with self-referencing tables, but this works correctly at runtime
 // @ts-ignore - TypeScript limitation with self-referencing tables in Drizzle ORM
-export const todos = pgTable('todos', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  description: text('description').notNull(),
-  priority: priorityEnum('priority').notNull().default('low'),
-  isComplete: boolean().notNull().default(false),
-  dueDate: timestamp({ withTimezone: true }),
+export const todos = pgTable(
+  'todos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    priority: priorityEnum('priority').notNull().default('low'),
+    isComplete: boolean().notNull().default(false),
+    dueDate: timestamp({ withTimezone: true }),
 
   // Recurring todos support
   // If recurrenceType is set, this todo repeats according to the pattern
-  recurrenceType: recurrenceTypeEnum('recurrence_type'),
+    recurrenceType: recurrenceTypeEnum('recurrence_type'),
 
   // Recurrence configuration stored as JSON for flexible patterns
   // For 'custom' recurrence, this can store complex rules like "every 3rd Tuesday"
   // Format: { interval: number, dayOfWeek?: number[], dayOfMonth?: number, etc. }
-  recurrenceConfig: text('recurrence_config'), // JSON string
+    recurrenceConfig: text('recurrence_config'), // JSON string
 
   // Reference to the original recurring todo template
   // When instances are auto-created, they reference this parent recurring todo
   // The template todo itself has recurrenceType set, instances have this field set
   // @ts-ignore - TypeScript limitation with self-referencing tables
-  recurringTodoId: uuid('recurring_todo_id').references(() => todos.id, {
-    onDelete: 'cascade',
-  }),
+    recurringTodoId: uuid('recurring_todo_id').references(() => todos.id, {
+      onDelete: 'cascade',
+    }),
 
   // Next occurrence date for recurring todos
   // Used to determine when the next instance should be created
-  nextOccurrence: timestamp({ withTimezone: true }),
+    nextOccurrence: timestamp({ withTimezone: true }),
 
   // End date for recurring todos (optional)
   // If set, the recurrence stops after this date
-  recurrenceEndDate: timestamp({ withTimezone: true }),
+    recurrenceEndDate: timestamp({ withTimezone: true }),
 
-  aiGenerated: boolean('ai_generated').notNull().default(false),
+    aiGenerated: boolean('ai_generated').notNull().default(false),
 
-  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp({ withTimezone: true })
-    .defaultNow()
-    .notNull()
-    .$onUpdate(() => new Date()),
-  // Each todo belongs to a single list (formerly category). Nullable for todos without a list.
-  listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
-})
+    createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp({ withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+    // Each todo belongs to a single list (formerly category). Nullable for todos without a list.
+    listId: uuid('list_id').references(() => lists.id, { onDelete: 'set null' }),
+  },
+  (table) => [index('todos_user_id_idx').on(table.userId)],
+)
 
 // Subtasks table: Simple checklist items that belong to a todo
 // Unlike todos, subtasks only have a name - they're meant to be simple like Wunderlist
@@ -223,6 +244,25 @@ export const remindersRelations = relations(reminders, ({ one }) => ({
   }),
 }))
 
+export const anonymousAiUsage = pgTable(
+  'anonymous_ai_usage',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ipHash: text('ip_hash').notNull(),
+    dateKey: text('date_key').notNull(),
+    count: integer('count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('anonymous_ai_usage_ip_hash_idx').on(table.ipHash),
+    uniqueIndex('anonymous_ai_usage_ip_hash_date_key_unique').on(table.ipHash, table.dateKey),
+  ],
+)
+
 // Update todos relations to include template reminders
 // (This needs to be added to the existing todosRelations)
 
@@ -274,7 +314,9 @@ export const activityLogs = pgTable('activity_logs', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
   
   // User association (optional - for multi-user support)
-  userId: text('user_id'),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
 })
 
 // ============================================================
