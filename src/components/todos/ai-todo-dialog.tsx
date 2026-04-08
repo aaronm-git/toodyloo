@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Sparkles, AlertCircle } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
   AccordionTrigger,
 } from '../ui/accordion'
 import { toast } from 'sonner'
+import { getAIUsage } from '../../lib/server/ai'
 import type { TodoWithRelations, ListWithCount } from '../../lib/tasks'
 
 interface AITodoDialogProps {
@@ -43,6 +45,13 @@ export function AITodoDialog({
   onStartGeneration,
 }: AITodoDialogProps) {
   const [prompt, setPrompt] = useState('')
+  const { data: usage } = useQuery({
+    queryKey: ['ai-usage'],
+    queryFn: () => getAIUsage(),
+    enabled: open,
+    staleTime: 30_000,
+  })
+  const limitReached = usage && !usage.unlimited && usage.used >= usage.limit
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,6 +90,18 @@ export function AITodoDialog({
             Describe your task in natural language. AI will parse the details,
             set priority, and suggest a due date.
           </DialogDescription>
+          {usage && (
+            <div className="text-xs text-muted-foreground pt-1">
+              {usage.unlimited ? (
+                <span>Usage today: {usage.used} / ∞</span>
+              ) : (
+                <span className={limitReached ? 'text-destructive font-medium' : ''}>
+                  Usage today: {usage.used} / {usage.limit}
+                  {limitReached && ' — limit reached, resets at midnight'}
+                </span>
+              )}
+            </div>
+          )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -125,9 +146,9 @@ export function AITodoDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!prompt.trim()}>
+            <Button type="submit" disabled={!prompt.trim() || !!limitReached}>
               <Sparkles className="size-4" />
-              Create Task
+              {limitReached ? 'Limit Reached' : 'Create Task'}
             </Button>
           </DialogFooter>
         </form>

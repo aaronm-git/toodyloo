@@ -5,6 +5,7 @@ config({ path: ['.env.local', '.env'] })
 
 const drizzleDatabaseUrl =
   process.env.DATABASE_URL_UNPOOLED ??
+  process.env.UNPOOLED_DATABASE_URL ??
   process.env.NETLIFY_DATABASE_URL_UNPOOLED ??
   process.env.DATABASE_URL ??
   process.env.NETLIFY_DATABASE_URL

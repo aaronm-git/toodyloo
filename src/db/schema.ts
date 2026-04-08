@@ -82,6 +82,8 @@ export const todos = pgTable('todos', {
   // If set, the recurrence stops after this date
   recurrenceEndDate: timestamp({ withTimezone: true }),
 
+  aiGenerated: boolean('ai_generated').notNull().default(false),
+
   createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp({ withTimezone: true })
     .defaultNow()

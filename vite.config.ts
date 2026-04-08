@@ -6,11 +6,11 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import netlify from '@netlify/vite-plugin-tanstack-start'
 
-const config = defineConfig({
+const config = defineConfig(({ command }) => ({
   plugins: [
     tanstackStart(),
     devtools(),
-    netlify(),
+    ...(command === 'build' ? [netlify()] : []),
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
     }),
@@ -29,6 +29,6 @@ const config = defineConfig({
       '@tanstack/react-router-devtools',
     ],
   },
-})
+}))
 
 export default config

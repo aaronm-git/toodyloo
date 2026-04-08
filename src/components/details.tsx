@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import {
   X,
   Trash2,
+  Sparkles,
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -385,6 +386,12 @@ export function Details({
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">Meta</h3>
             <div className="space-y-1 text-sm text-muted-foreground">
+              {todo.aiGenerated && (
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                  <span className="font-medium text-purple-600 dark:text-purple-400">Created with AI</span>
+                </div>
+              )}
               {todo.createdAt && (
                 <div>
                   <span className="font-medium">Created:</span>{' '}

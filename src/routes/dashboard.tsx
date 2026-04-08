@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useMemo, useEffect, useCallback } from 'react'
@@ -571,6 +572,7 @@ function DashboardPage() {
       const parsedTodo = todoWithRelationsSchema.parse(result)
       return { todo: parsedTodo, tempId }
     },
+    retry: false,
     meta: {
       operationType: 'create',
       entityType: 'ai-todo',
@@ -591,6 +593,7 @@ function DashboardPage() {
       // Invalidate to ensure the real todo is in the main list
       queryClient.invalidateQueries({ queryKey: ['todos'] })
       queryClient.invalidateQueries({ queryKey: ['lists'] })
+      queryClient.invalidateQueries({ queryKey: ['ai-usage'] })
       
       // After fade animation completes (300ms), remove from AI loading list
       // The real todo will already be showing in the regular todos list
@@ -605,10 +608,18 @@ function DashboardPage() {
         }
       }, 350)
     },
-    onError: (_err, { tempId }) => {
+    onError: (err, { tempId }) => {
       // Remove loading todo immediately on error
       setAiLoadingTodos((prev) => prev.filter((t) => t.tempId !== tempId))
-      // Error is automatically logged to activity by MutationMeta
+
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.includes('AI_DAILY_LIMIT_EXCEEDED')) {
+        toast.error('Daily AI limit reached (15/day). Try again tomorrow!')
+      } else if (message.includes('AI_QUOTA_EXCEEDED')) {
+        toast.error('AI quota exceeded. Please check your OpenAI plan and billing details.')
+      } else {
+        toast.error('Failed to generate AI todo. Please try again.')
+      }
     },
   })
 

@@ -60,7 +60,7 @@ export const EditableTextarea = forwardRef<HTMLTextAreaElement, EditableTextarea
       textClassName,
       textareaClassName,
       disabled = false,
-      minRows = 2,
+      minRows = 4,
       'aria-label': ariaLabel,
     },
     forwardedRef

@@ -1,10 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import * as Sentry from '@sentry/tanstackstart-react'
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { db } from '../../db'
 import { todos, subtasks } from '../../db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and, gte, sql } from 'drizzle-orm'
+import { auth } from '../auth'
 
 // Import schemas from single source of truth
 import {
@@ -16,6 +18,36 @@ import {
 } from '../tasks'
 
 import { serverLog, PERF_THRESHOLDS, logIfSlow } from './logging'
+
+const AI_DAILY_LIMIT = 15
+const UNLIMITED_EMAIL = '2aaronmolina@gmail.com'
+
+// Get AI usage stats for the current user
+export const getAIUsage = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    const request = getRequest()
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
+      return { used: 0, limit: AI_DAILY_LIMIT, unlimited: false }
+    }
+
+    const unlimited = session.user.email === UNLIMITED_EMAIL
+
+    const startOfDay = new Date()
+    startOfDay.setHours(0, 0, 0, 0)
+
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(todos)
+      .where(
+        and(
+          eq(todos.aiGenerated, true),
+          gte(todos.createdAt, startOfDay),
+        ),
+      )
+
+    return { used: count, limit: AI_DAILY_LIMIT, unlimited }
+  })
 
 // Generate and create a todo using AI
 export const generateTodoWithAI = createServerFn({ method: 'POST' })
@@ -44,6 +76,37 @@ export const generateTodoWithAI = createServerFn({ method: 'POST' })
     return Sentry.startSpan({ name: 'generateTodoWithAI', op: 'ai.generate' }, async () => {
       const startTime = Date.now()
       const { prompt, lists: availableLists } = ctx.data
+
+      // Authenticate and enforce daily rate limit
+      const request = getRequest()
+      const session = await auth.api.getSession({ headers: request.headers })
+      if (!session?.user) {
+        throw new Error('AI_AUTH_REQUIRED')
+      }
+
+      if (session.user.email !== UNLIMITED_EMAIL) {
+        const startOfDay = new Date()
+        startOfDay.setHours(0, 0, 0, 0)
+
+        const [{ count: todayCount }] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(todos)
+          .where(
+            and(
+              eq(todos.aiGenerated, true),
+              gte(todos.createdAt, startOfDay),
+            ),
+          )
+
+        if (todayCount >= AI_DAILY_LIMIT) {
+          serverLog.warn('ai.dailyLimit.exceeded', {
+            userEmail: session.user.email,
+            todayCount,
+            limit: AI_DAILY_LIMIT,
+          })
+          throw new Error('AI_DAILY_LIMIT_EXCEEDED')
+        }
+      }
 
       try {
         serverLog.info('ai.generation.started', {
@@ -164,6 +227,7 @@ Return a well-structured task based on the user's input.`
             priority: result.priority as Priority,
             dueDate: dueDate,
             listId: listIds.length > 0 ? listIds[0] : null,
+            aiGenerated: true,
           })
           .returning()
 
@@ -240,7 +304,13 @@ Return a well-structured task based on the user's input.`
             durationMs,
           },
         })
-        throw error
+
+        // Preserve quota/rate-limit errors so the client can detect them
+        const errMsg = error instanceof Error ? error.message : String(error)
+        if (errMsg.includes('429') || errMsg.toLowerCase().includes('quota')) {
+          throw new Error('AI_QUOTA_EXCEEDED')
+        }
+        throw new Error('AI_GENERATION_FAILED')
       }
     })
   })

@@ -8,6 +8,13 @@
       "when": 1769038626282,
       "tag": "0000_bright_maria_hill",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775577473909,
+      "tag": "0001_abnormal_arachne",
+      "breakpoints": true
     }
   ]
 }
